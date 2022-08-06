@@ -78,7 +78,7 @@ ssh -o StrictHostKeyChecking=no root@xx.xx.xx.xx "hostname  kube-node4"
 
 
 
- 4、在magic.sh脚本里，修改root名字
+ 4、在magic.sh脚本里，修改root名字，节点多，自行添加。
 
 ```shell
 [root@localhost magic]# sed -n '351,354p' magic.sh
