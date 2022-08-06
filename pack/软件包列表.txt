@@ -1,0 +1,10 @@
+cfssl_linux-amd64
+cfssl-certinfo_linux-amd64
+cfssljson_linux-amd64
+docker-19.03.15.tgz 
+etcd-v3.3.10-linux-amd64.tar.gz
+flannel-v0.10.0-linux-amd64.tar.gz
+kubernetes-client-linux-amd64.tar.gz
+kubernetes-server-linux-amd64.tar.gz
+
+以上的所有版本必须匹配，各组件版本不匹配，会发生问题
