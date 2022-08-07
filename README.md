@@ -17,7 +17,7 @@
 config  
 pack 
 magic.sh
-
+next.sh
 ```
 
 ##### 将下载好的文件放在主控制节点上，我这里是放在kube-master1上面。
