@@ -3,6 +3,51 @@ base_dir=$(pwd)
 set -e
 mkdir -p /opt/k8s/bin/ && cp $base_dir/config/environment.sh /opt/k8s/bin/
 
+
+################################################################################
+# Function: get_cur_path
+# Description: 获取脚本所在的目录及脚本名
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+function get_cur_path()
+{
+    cd "$(dirname "${BASH_SOURCE-$0}")"
+    g_curPath="${PWD}"
+    g_scriptName="$(basename "${BASH_SOURCE-$0}")"
+    cd - >/dev/null
+}
+
+################################################################################
+# Print the log to the log ${g_logFile}
+################################################################################
+logDef()
+{
+    local funcName="$1"; shift
+    local logLevel="$1"; shift
+    local lineNO="$1"; shift
+
+    #打印时间、日志级别、日志内容、脚本名称、调用日志打印函数的函数、打印时的行号及脚本的进程号
+    local logTime="$(date -d today +'%Y-%m-%d %H:%M:%S')"
+    printf "[${logTime}] ${logLevel} $* [${g_scriptName}(${funcName}):${lineNO}]($$)\n" \
+        >> "${g_logFile}" 2>&1
+}
+
+log_error()
+{
+    logDef "${FUNCNAME[1]}" "ERROR" "$@"
+}
+
+log_info()
+{
+    logDef "${FUNCNAME[1]}" "INFO" "$@"
+}
+
 echo "################  批量分发公钥-免交互方式  ####################"
 yum install -y sshpass
 # create key pair
