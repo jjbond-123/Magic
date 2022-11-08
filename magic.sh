@@ -3,7 +3,360 @@ base_dir=$(pwd)
 set -e
 mkdir -p /opt/k8s/bin/ && cp $base_dir/config/environment.sh /opt/k8s/bin/
 
+-----------------
+#!/bin/bash
+################################################################################
+## Copyright:   HUAWEI Tech. Co., Ltd.
+## Filename:    preSetInstall.sh
+## Description: 
+## Version:     FusionInsight V100R002C60
+## Created:     Friday, 11 18, 2015
+################################################################################ 
 
+################################################################################
+# Function: logDef
+# Description: 记录到日志文件
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: 该函数是最低层日志函数，不会被外部函数直接调用
+################################################################################
+logDef()
+{
+    # 调用日志打印函数的函数名称
+    local funcName="$1"
+    shift
+
+    # 打印的日志级别
+    local logLevel="$1"
+    shift
+
+    # 外部调用日志打印函数时所在的行号
+    local lineNO="$1"
+    shift
+    
+    if [ -d "${g_logPath}" ] ; then
+        # 打印时间、日志级别、日志内容、脚本名称、调用日志打印函数的函数、打印时的行号及脚本的进程号
+        local logTime="$(date -d today +'%Y-%m-%d %H:%M:%S')"
+        printf "[${logTime}] ${logLevel} $* [${g_scriptName}(${funcName}):${lineNO}]($$)\n" \
+            >> "${g_logPath}/${g_logFile}" 2>&1
+    fi
+
+    return 0
+}
+
+################################################################################
+# Function: log_error
+# Description: 对外部提供的日志打印函数：记录EEROR级别日志到日志文件
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+log_error()
+{
+    # FUNCNAME是shell的内置环境变量，是一个数组变量，其中包含了整个调用链上所有
+    # 的函数名字，通过该变量取出调用该函数的函数名
+    logDef "${FUNCNAME[1]}" "ERROR" "$@"
+}
+
+################################################################################
+# Function: log_info
+# Description: 对外部提供的日志打印函数：记录INFO级别日志到日志文件
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+log_info()
+{
+    # FUNCNAME是shell的内置环境变量，是一个数组变量，其中包含了整个调用链上所有
+    # 的函数名字，通过该变量取出调用该函数的函数名
+    logDef "${FUNCNAME[1]}" "INFO" "$@"
+}
+
+################################################################################
+# Function: showLog
+# Description: 记录日志到文件并显示到屏幕
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: 该函数是低层日志函数，不会被外部函数直接调用
+################################################################################
+showLog()
+{
+    # 把日志打印到日志文件。FUNCNAME是shell的内置环境变量，是一个数组变量，其中
+    # 包含了整个调用链上所有的函数名字，通过该变量取出调用该函数的函数名
+    logDef "${FUNCNAME[2]}" "$@"
+
+    # 如果是EEROR日志级别，则显示在屏幕上要带前缀：ERROR
+    if [ "$1" = "ERROR" ]; then
+        echo -e "ERROR:$3"
+    elif [ "$1" = "WARN" ];then
+        echo -e "WARN: $3"
+    else
+        echo -e "$3"
+    fi
+}
+
+################################################################################
+# Function: showLog_error
+# Description: 对外部提供的日志打印函数：记录ERROR级别日志到文件并显示到屏幕
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+showLog_error()
+{
+    showLog ERROR "$@"
+}
+
+################################################################################
+# Function: showLog_info
+# Description: 对外部提供的日志打印函数：记录INFO级别日志到文件并显示到屏幕
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+showLog_info()
+{
+    showLog INFO "$@"
+}
+
+################################################################################
+# Function: syslog
+# Description: Important operation must record to syslog
+# Parameters  : $1 is component name ; $2 is filename ; $3 is status ; $4 is message
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+function syslog()
+{
+    local component=$1
+    local filename=$2
+    local status=$3
+    local message=$4
+
+    if [ "$3" -eq "0" ]; then
+        status="success"
+    else
+        status="failed"
+    fi
+
+    which logger >/dev/null 2>&1
+    [ "$?" -ne "0" ] && return 0;
+
+    login_user_ip="$(who -m | sed 's/.*(//g;s/)*$//g')"
+    execute_user_name="$(whoami)"
+    logger -p local0.notice -i "FusionInsight;${component};[${filename}];${status};${login_user_ip};${execute_user_name};${message}"
+    return 0
+}
+-----------------
+
+
+-----------------
+#!/bin/bash
+################################################################################
+## Copyright:   DGHW Tech. Co., Ltd.
+## Filename:    "${service}".sh
+## Description:
+## Version:     MRS820
+## Created:     Friday, 11 04, 2022
+################################################################################
+declare g_curPath=""                      # 当前脚本所在的目录
+declare g_logPath="/var/log/services/" # 日志路径
+declare g_logFile="${service}".log            # 日志文件
+declare install_path="${location}"
+
+
+read -t 60 -p "请输入需要安装的服务名{例如:mysql。如果不输入直接回车,默认安装服务名为test}:" service
+read -t 60 -p "请输入需要安装的服务目录位置{例如：/usr/local/。如果不输入直接回车,默认安装在/usr/local/}:" location
+
+################################################################################
+# Function: get_cur_path
+# Description: 获取脚本所在的目录及脚本名
+# Parameter:
+#   input:
+#   N/A
+#   output:
+#   N/A
+# Return: 0 -- success; not 0 -- failure
+# Others: N/A
+################################################################################
+init_path()
+{
+    cd "$(dirname "${BASH_SOURCE-$0}")"
+    g_curPath="${PWD}"
+    g_scriptName="$(basename "${BASH_SOURCE-$0}")"
+    g_setup_tool_package_home="$(dirname "${g_curPath}")"
+    cd - >/dev/null
+}
+
+################################################################################
+ # Function: init_log
+ # Description: 初始化服务日志文件
+ # Parameter:
+ #   input:
+ #   N/A
+ #   output:
+ #   N/A
+ # Return: 0 -- success; not 0 -- failure
+ # Others: N/A
+ ################################################################################
+main()
+{
+
+init_log()
+{
+#创建服务文件夹日志目录
+if [ -d "${g_logPath}" ];then
+    log_info $INFO  "The log directory exists." >> "${g_logPath}"/all.log
+else
+    mkdir "${g_logPath}"
+    log_info $INFO  "The log directory is created successfully." >> "${g_logPath}"/all.log
+fi
+
+#判断输入的值是否为空 
+if [ ! -n "$service" ];then
+  service=test
+  if [  -f "${service}".log ];then
+      log_info $INFO "The log file exists." >> "${g_logPath}"/all.log
+  else 
+      touch "${g_logPath}"/"${service}".log
+      log_info $INFO "The log directory is created successfully." >> "${g_logPath}"/all.log
+  fi
+else  
+  touch   "${g_logPath}"/"${service}".log
+fi
+
+#判断输入的值是否为空 
+if [ ! -n "$location" ];then
+  location="/usr/local"
+  log_info $INFO "The installation position is not entered." >> "${g_logPath}"/all.log
+else  
+  log_info $INFO "Installation position input" >> "${g_logPath}"/all.log
+fi
+}
+
+################################################################################
+ # Function: package
+ # Description: 文件进行解压
+ # Parameter:
+ #   input:
+ #   N/A
+ #   output:
+ #   N/A
+ # Return: 0 -- success; not 0 -- failure
+ # Others: N/A
+ ################################################################################
+#mysql下载位置：https://downloads.mysql.com/archives/get/p/23/file/mysql-5.7.28-linux-glibc2.12-x86_64.tar.gz
+#这里的实例是5.7.28版本
+SERVICE_GZ=`ls /root/ | grep $service`
+if [ $? -eq 0 ];then
+   log_info $INFO "The installation package exists."
+   mv /root/"${SERVICE_GZ}"  "${g_curPath}"/Packages
+else 
+   log_error $INFO "The installation package does not exist. Check whether the package is stored in the /root directory."
+   exit 0
+fi
+
+tar -xvzf "${g_curPath}"/Packages/"${SERVICE_GZ}" -C "${location}"
+if [ -f "${location}"/mysql* ];then
+   log_info $INFO "The MySQL package is decompressed successfully."
+   mv "${location}"/mysql*  "${location}"/mysql
+else 
+   log_error $INFO "Failed to decompress the MySQL package. Manually check the package."
+   exit 0
+fi
+
+################################################################################
+ # Function: package
+ # Description: mysql安装
+ # Parameter:
+ #   input:
+ #   N/A
+ #   output:
+ #   N/A
+ # Return: 0 -- success; not 0 -- failure
+ # Others: N/A
+ ################################################################################
+#创建mysql用户
+groupadd mysql
+useradd -r -g mysql mysql
+#创建mysql存储目录
+mkdir "${location}"/mysql/data/
+#创建mysql的日志目录
+mkdir "${location}"/mysql/log/
+chown -R mysql:mysql "${location}"/mysql/
+#删除原先的mysql的配置文件
+rm -rf /etc/my.cnf
+cat > /etc/my.cnf <<EOF
+[mysqld]
+bind-address=0.0.0.0
+port=3306
+user=mysql
+basedir="${location}"/mysql
+datadir="${location}"/mysql/data/
+socket=/tmp/mysql.sock
+log-error="${location}"/mysql/log/mysql.err
+pid-file="${location}"/mysql/mysql.pid
+#character config
+character_set_server=utf8mb4
+symbolic-links=0
+explicit_defaults_for_timestamp=true
+EOF
+chmod  644 /etc/my.cnf
+
+#初始化mysql
+"${location}"/mysql/bin/mysqld --defaults-file=/etc/my.cnf --basedir="${location}"/mysql/ --datadir="${location}"/mysql/data/ --user=mysql --initialize
+
+}
+
+
+
+# ---------------------------------------------------------------------------- #
+#                        获取当前路径,初始化日志文件                           #
+# ---------------------------------------------------------------------------- #
+cd "${g_curPath}"
+init_log
+get_cur_path
+# ---------------------------------------------------------------------------- #
+#                                   导入头文件                                 #
+# ---------------------------------------------------------------------------- #
+. "${g_curPath}/log/log.sh" || { echo "[${g_scriptName}:${LINENO}] ERROR: Failed to load ${g_curPath}/log/log.sh."; exit 1;}
+
+
+# ---------------------------------------------------------------------------- #
+#                                 脚本开始运行                                 #
+# ---------------------------------------------------------------------------- #
+main "$@"
+ret=$?
+
+
+
+
+
+-----------------
 ################################################################################
 # Function: get_cur_path
 # Description: 获取脚本所在的目录及脚本名
