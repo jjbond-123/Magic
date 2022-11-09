@@ -8,3 +8,42 @@ kubernetes-client-linux-amd64.tar.gz
 kubernetes-server-linux-amd64.tar.gz
 
 以上的所有版本必须匹配，各组件版本不匹配，会发生问题
+
+CREATE USER 'repl'@'192.168.122.25' IDENTIFIED BY 'mysql';
+
+grant replication slave on *.* to 'repl'@'192.168.122.25';
+
+3.(主库)修改/etc/my.cnf文件，注意确保：server-id 惟一
+[mysqld]
+bind-address = 192.168.200.120 //这里的IP地址必须是经过ipconfig查出来的IP
+server-id = 1
+log_bin = /var/log/mysql/mysql-bin.log
+expire_logs_days = 10
+max_binlog_size = 100M
+binlog_do_db = empw_test
+#binlog_ignore_db = include_database_name
+binlog_format = row # binlog的格式 row 具备 statement和mixed 不具有的优点 填写 row
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1 # 和 sync_binlog 组成双1 配置 保证数据的完整性
+
+
+
+./mysql -uroot -p"mysql"
+mysql> show master status;
++------------------+----------+--------------+------------------+-------------------+
+| File             | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
++------------------+----------+--------------+------------------+-------------------+
+| mysql-bin.000001 |      154 | empw_test    |                  |                   |
++------------------+----------+--------------+------------------+-------------------+
+1 row in set (0.00 sec)
+
+
+.(从库)修改/etc/my.cnf文件，注意确保：server-id 惟一
+[mysqld]
+server-id = 2
+7.(从库)重启slave端
+service mysql restart
+8.(从库)对从数据库服务器作相应设置,指定复制使用的用户,主数据库服务器的IP、端口以及开始执行复制的日志文件和位置等
+mysql> CHANGE MASTER TO MASTER_HOST='192.168.122.24',MASTER_USER='repl',MASTER_PASSWORD='mysql',MASTER_LOG_FILE='mysql-bin.000001',MASTER_LOG_POS=154;
+9.(从库)启动slave线程
+mysql> start slave;
